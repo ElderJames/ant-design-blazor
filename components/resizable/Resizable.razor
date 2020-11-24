@@ -1,0 +1,17 @@
+﻿@namespace AntDesign
+@inherits AntDomComponentBase
+
+<div @ref="Ref" class="box @ClassMapper.Class" style="@GetStyle" @onmouseenter="OnMouseEnter" @onmouseleave="OnMouseLeave">
+    <ResizeHandles />
+    Content
+</div>
+
+<style>
+    .box {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #eee;
+        border: 1px solid #ddd;
+    }
+</style>
