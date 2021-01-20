@@ -7,11 +7,11 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace AntDesign
 {
-    public class AutoCompleteInput<TValue> : Input<TValue>, IAutoCompleteInput
+    public class AutoCompleteInput : Input<string>, IAutoCompleteInput
     {
 
         [CascadingParameter]
-        public IAutoCompleteRef AutoComplete { get; set; }
+        public IAutoCompleteInputRef AutoComplete { get; set; }
 
         protected override void OnInitialized()
         {
@@ -22,7 +22,7 @@ namespace AntDesign
 
         internal override async Task OnFocusAsync(FocusEventArgs e)
         {
-            if (AutoComplete != null) await AutoComplete?.InputFocus(e);
+            if (AutoComplete != null) AutoComplete?.InputFocus(e);
 
             await base.OnFocusAsync(e);
 
@@ -48,7 +48,7 @@ namespace AntDesign
 
         public void SetValue(object value)
         {
-            this.CurrentValue = (TValue)value;
+            this.CurrentValue = value?.ToString();
         }
 
         #endregion

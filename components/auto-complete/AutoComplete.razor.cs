@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using AntDesign.Internal;
 using AntDesign.JsInterop;
@@ -11,9 +12,26 @@ using OneOf;
 
 namespace AntDesign
 {
-    public partial class AutoComplete<TOption> : AntInputComponentBase<string>, IAutoCompleteRef
+    public partial class AutoComplete<TOption> : AntInputComponentBase<string>, IAutoCompleteRef<TOption>, IAutoCompleteInputRef
     {
-        #region Parameters
+        public void SetInputComponent(IAutoCompleteInput input)
+        {
+            _inputComponent = input;
+        }
+
+        #region 样式
+
+        [Parameter]
+        public OneOf<int?, string> Width { get; set; }
+
+        [Parameter]
+        public string OverlayClassName { get; set; }
+
+        [Parameter]
+        public string OverlayStyle { get; set; }
+
+        [Parameter]
+        public string PopupContainerSelector { get; set; } = "body";
 
         [Parameter]
         public string Placeholder { get; set; }
@@ -26,15 +44,32 @@ namespace AntDesign
         [Parameter]
         public bool Backfill { get; set; } = false;
 
+        #endregion 
+
+        #region 事件
+
+        [Parameter]
+        public EventCallback<AutoCompleteOption<TOption>> OnSelectionChange { get; set; }
+        [Parameter]
+        public EventCallback<AutoCompleteOption<TOption>> OnActiveChange { get; set; }
+
+        [Parameter]
+        public EventCallback<ChangeEventArgs> OnInput { get; set; }
+
+        [Parameter]
+        public EventCallback<bool> OnPanelVisibleChange { get; set; }
+
+        [Parameter]
+        public RenderFragment ChildContent { get; set; }
+
+        #endregion
+
+        #region 列表显示
+
         /// <summary>
         /// 列表对象集合
         /// </summary>
-        private List<AutoCompleteOption> AutoCompleteOptions { get; set; } = new List<AutoCompleteOption>();
-
-        /// <summary>
-        /// 列表数据集合
-        /// </summary>
-        private List<AutoCompleteDataItem<TOption>> _optionDataItems = new List<AutoCompleteDataItem<TOption>>();
+        private List<AutoCompleteOption<TOption>> AutoCompleteOptions { get; set; } = new List<AutoCompleteOption<TOption>>();
 
         /// <summary>
         /// 列表绑定数据源集合
@@ -50,39 +85,20 @@ namespace AntDesign
             set
             {
                 _options = value;
-                _optionDataItems = _options?.Select(x => new AutoCompleteDataItem<TOption>(x, x.ToString())).ToList() ?? new List<AutoCompleteDataItem<TOption>>();
+                _isOptionsReload = true;
             }
         }
 
         /// <summary>
-        /// 绑定列表数据项格式的数据源
+        /// 选项是否需要处理成OptionDataItems格式用于界面显示
+        /// </summary>
+        private bool _isOptionsReload = true;
+
+        /// <summary>
+        /// 列表数据集合
         /// </summary>
         [Parameter]
-        public IEnumerable<AutoCompleteDataItem<TOption>> OptionDataItems
-        {
-            get
-            {
-                return _optionDataItems;
-            }
-            set
-            {
-                _optionDataItems = value.ToList();
-            }
-        }
-
-        [Parameter]
-        public EventCallback<AutoCompleteOption> OnSelectionChange { get; set; }
-        [Parameter]
-        public EventCallback<AutoCompleteOption> OnActiveChange { get; set; }
-
-        [Parameter]
-        public EventCallback<ChangeEventArgs> OnInput { get; set; }
-
-        [Parameter]
-        public EventCallback<bool> OnPanelVisibleChange { get; set; }
-
-        [Parameter]
-        public RenderFragment ChildContent { get; set; }
+        public IList<AutoCompleteDataItem<TOption>> OptionDataItems { get; set; }
 
         /// <summary>
         /// 选项模板
@@ -91,28 +107,22 @@ namespace AntDesign
         public RenderFragment<AutoCompleteDataItem<TOption>> OptionTemplate { get; set; }
 
         /// <summary>
+        /// 选项禁用表达式，用于控制选项是否禁用
+        /// </summary>
+        [Parameter]
+        public Func<TOption, bool> OptionDisabledExpression { get; set; }
+
+        /// <summary>
+        /// 选项标签表达式，用于控制选项显示的标签
+        /// </summary>
+        [Parameter]
+        public Func<TOption, string> OptionLabelExpression { get; set; }
+
+        /// <summary>
         /// 格式化选项，可以自定义显示格式
         /// </summary>
         [Parameter]
         public Func<AutoCompleteDataItem<TOption>, string> OptionFormat { get; set; }
-
-        /// <summary>
-        /// 所有选项模板
-        /// </summary>
-        [Parameter]
-        public RenderFragment OverlayTemplate { get; set; }
-
-        /// <summary>
-        /// 对比，用于两个对象比较是否相同
-        /// </summary>
-        [Parameter]
-        public Func<object, object, bool> CompareWith { get; set; } = (o1, o2) => o1?.ToString() == o2?.ToString();
-
-        /// <summary>
-        /// 过滤表达式
-        /// </summary>
-        [Parameter]
-        public Func<AutoCompleteDataItem<TOption>, string, bool> FilterExpression { get; set; } = (option, value) => string.IsNullOrEmpty(value) ? true : option.Label.Contains(value, StringComparison.InvariantCultureIgnoreCase);
 
         /// <summary>
         /// 允许过滤
@@ -120,116 +130,53 @@ namespace AntDesign
         [Parameter]
         public bool AllowFilter { get; set; } = true;
 
-        [Parameter]
-        public OneOf<int?, string> Width { get; set; }
-
-        [Parameter]
-        public string OverlayClassName { get; set; }
-
-        [Parameter]
-        public string OverlayStyle { get; set; }
-
-        [Parameter]
-        public string PopupContainerSelector { get; set; } = "body";
-
-        #endregion Parameters
-
-        private ElementReference _divRef;
-        private OverlayTrigger _overlayTrigger;
-
-        public object SelectedValue { get; set; }
         /// <summary>
-        /// 选择的项
+        /// 对比，用于两个对象比较是否相同，用于过滤条件
         /// </summary>
         [Parameter]
-        public AutoCompleteOption SelectedItem { get; set; }
+        public Func<TOption, TOption, bool> CompareWith { get; set; } = (o1, o2) => o1?.ToString() == o2?.ToString();
 
         /// <summary>
-        /// 高亮的项目
+        /// 筛选比较模式
         /// </summary>
-        public object ActiveValue { get; set; }
-
+        [Parameter]
+        public StringComparison FilterComparison { get; set; } = StringComparison.InvariantCultureIgnoreCase;
 
         [Parameter]
-        public bool ShowPanel { get; set; } = false;
+        public StringFilterMode FilterMode { get; set; } = StringFilterMode.Contains;
 
-        private bool _isOptionsZero = true;
-
-        private IAutoCompleteInput _inputComponent;
-
-        public void SetInputComponent(IAutoCompleteInput input)
+        public Func<AutoCompleteDataItem<TOption>, string, bool> _filterExpression;
+        /// <summary>
+        /// 过滤表达式
+        /// </summary>
+        [Parameter]
+        public Func<AutoCompleteDataItem<TOption>, string, bool> FilterExpression
         {
-            _inputComponent = input;
-        }
-
-        #region 子控件触发事件
-        public async Task InputFocus(FocusEventArgs e)
-        {
-            if (!_isOptionsZero)
+            get
             {
-                this.OpenPanel();
-            }
-        }
-
-        public async Task InputInput(ChangeEventArgs args)
-        {
-            SelectedValue = args?.Value;
-            if (OnInput.HasDelegate) await OnInput.InvokeAsync(args);
-            StateHasChanged();
-        }
-
-        public async Task InputKeyDown(KeyboardEventArgs args)
-        {
-            var key = args.Key;
-
-            if (this.ShowPanel)
-            {
-                if (key == "Escape" || key == "Tab")
+                if (_filterExpression != null) return _filterExpression;
+                return (option, value) =>
                 {
-                    this.ClosePanel();
-                }
-                else if (key == "Enter" && this.ActiveValue != null)
-                {
-                    await SetSelectedItem(GetActiveItem());
-                }
-            }
-            else if (!_isOptionsZero)
-            {
-                this.OpenPanel();
-            }
+                    if (string.IsNullOrEmpty(value)) return true;
 
-            if (key == "ArrowUp")
-            {
-                this.SetPreviousItemActive();
+                    if (FilterMode == StringFilterMode.Contains)
+                        return option.Label.Contains(value, FilterComparison);
+                    else
+                        return option.Label.StartsWith(value, FilterComparison);
+                };
             }
-            else if (key == "ArrowDown")
+            set
             {
-                this.SetNextItemActive();
+                _filterExpression = value;
             }
         }
 
-        #endregion
-
-        protected override void OnParametersSet()
-        {
-            base.OnParametersSet();
-            ResetActiveItem();
-        }
-
-        protected override async Task OnFirstAfterRenderAsync()
-        {
-            await SetOverlayWidth();
-            await base.OnFirstAfterRenderAsync();
-        }
-
-
-
-        public void AddOption(AutoCompleteOption option)
+        public void AddOption(AutoCompleteOption<TOption> option)
         {
             AutoCompleteOptions.Add(option);
         }
 
-        public void RemoveOption(AutoCompleteOption option)
+        public void RemoveOption(AutoCompleteOption<TOption> option)
         {
             if (AutoCompleteOptions?.Contains(option) == true)
                 AutoCompleteOptions?.Remove(option);
@@ -237,12 +184,24 @@ namespace AntDesign
 
         public IList<AutoCompleteDataItem<TOption>> GetOptionItems()
         {
-            if (_optionDataItems != null)
+            if (_isOptionsReload == true && _options != null)
+            {//如果选项有值，并且需要转换，那么就转换他
+
+                OptionDataItems = _options.Select(x => new AutoCompleteDataItem<TOption>()
+                {
+                    Value = x,
+                    Label = OptionLabelExpression == null ? x.ToString() : OptionLabelExpression(x),
+                    IsDisabled = OptionDisabledExpression == null ? false : OptionDisabledExpression(x),
+                }).ToList();
+                _isOptionsReload = false;
+            }
+
+            if (OptionDataItems != null)
             {
-                if (FilterExpression != null && AllowFilter == true && SelectedValue != null)
-                    return _optionDataItems.Where(x => FilterExpression(x, SelectedValue?.ToString())).ToList();
+                if (FilterExpression != null && AllowFilter == true && CurrentValue != null)
+                    return OptionDataItems.Where(x => FilterExpression(x, CurrentValue)).ToList();
                 else
-                    return _optionDataItems;
+                    return OptionDataItems;
             }
             else
             {
@@ -250,44 +209,67 @@ namespace AntDesign
             }
         }
 
+        #endregion
+
+        #region 选项的选择
+
+
+        public TOption SelectedValue { get; set; }
+
+        public AutoCompleteOption<TOption> _selectedItem;
         /// <summary>
-        /// 打开面板
+        /// 选择的项
         /// </summary>
-        public void OpenPanel()
+        [Parameter]
+        public AutoCompleteOption<TOption> SelectedItem
         {
-            if (this.ShowPanel == false)
+            get { return _selectedItem; }
+            set
             {
-                this.ShowPanel = true;
+                _selectedItem = value;
 
-                _overlayTrigger.Show();
-
-                ResetActiveItem();
-                StateHasChanged();
+                if (KeyValueChanged.HasDelegate)
+                {
+                    if (KeyValueFunc == null)
+                        KeyValue = value.Value;
+                    else
+                    {
+                        KeyValue = value == null ? null : KeyValueFunc(value.Value);
+                    }
+                    KeyValueChanged.InvokeAsync(KeyValue);
+                }
             }
         }
 
         /// <summary>
-        /// 关闭面板
+        /// K/V模式下的Key值
         /// </summary>
-        public void ClosePanel()
-        {
-            if (this.ShowPanel == true)
-            {
-                this.ShowPanel = false;
+        [Parameter]
+        public object KeyValue { get; set; }
 
-                _overlayTrigger.Close();
+        [Parameter]
+        public EventCallback<object> KeyValueChanged { get; set; }
 
-                StateHasChanged();
-            }
-        }
+        /// <summary>
+        /// 选中项绑定的数据转换，常用于K/V模式
+        /// </summary>
+        [Parameter]
+        public Func<object, object> KeyValueFunc { get; set; }
 
-        public AutoCompleteOption GetActiveItem()
+
+        /// <summary>
+        /// 高亮的项目
+        /// </summary>
+        public TOption ActiveValue { get; set; }
+
+
+        public AutoCompleteOption<TOption> GetActiveItem()
         {
             return AutoCompleteOptions.FirstOrDefault(x => CompareWith(x.Value, this.ActiveValue));
         }
 
         //设置高亮的对象
-        public void SetActiveItem(AutoCompleteOption item)
+        public void SetActiveItem(AutoCompleteOption<TOption> item)
         {
             this.ActiveValue = item == null ? default(TOption) : item.Value;
             if (OnActiveChange.HasDelegate) OnActiveChange.InvokeAsync(item);
@@ -339,7 +321,7 @@ namespace AntDesign
                 }
                 else
                 {
-                    this.ActiveValue = null;
+                    this.ActiveValue = default(TOption);
                 }
             }
 
@@ -358,7 +340,7 @@ namespace AntDesign
             }
         }
 
-        public async Task SetSelectedItem(AutoCompleteOption item)
+        public async Task SetSelectedItem(AutoCompleteOption<TOption> item)
         {
             if (item != null)
             {
@@ -370,6 +352,54 @@ namespace AntDesign
             }
             this.ClosePanel();
         }
+
+        #endregion
+
+        #region 面板
+
+        private OverlayTrigger _overlayTrigger;
+        /// <summary>
+        /// 所有选项模板
+        /// </summary>
+        [Parameter]
+        public RenderFragment OverlayTemplate { get; set; }
+
+
+        [Parameter]
+        public bool ShowPanel { get; set; } = false;
+
+        /// <summary>
+        /// 选项是否为空
+        /// </summary>
+        private bool _isOptionsZero = true;
+
+        /// <summary>
+        /// 打开面板
+        /// </summary>
+        public void OpenPanel()
+        {
+            if (this.ShowPanel == false)
+            {
+                this.ShowPanel = true;
+                _overlayTrigger.Show();
+                ResetActiveItem();
+                StateHasChanged();
+            }
+        }
+
+        /// <summary>
+        /// 关闭面板
+        /// </summary>
+        public void ClosePanel()
+        {
+            if (this.ShowPanel == true)
+            {
+                this.ShowPanel = false;
+                _overlayTrigger.Close();
+                StateHasChanged();
+            }
+        }
+
 
         bool _parPanelVisible = false;
 
@@ -398,10 +428,75 @@ namespace AntDesign
             }
             else
             {
-                Element element = await JsInvokeAsync<Element>(JSInteropConstants.GetDomInfo, _divRef);
+                Element element = await JsInvokeAsync<Element>(JSInteropConstants.GetDomInfo, Ref);
                 newWidth = $"min-width:{element.clientWidth}px";
             }
             if (newWidth != _minWidth) _minWidth = newWidth;
+        }
+
+        #endregion
+
+        #region Input控件操控
+
+        private IAutoCompleteInput _inputComponent;
+
+        public void InputFocus(FocusEventArgs e)
+        {
+            if (!_isOptionsZero)
+            {
+                this.OpenPanel();
+            }
+        }
+
+        public async Task InputInput(ChangeEventArgs args)
+        {
+            CurrentValue = args?.Value.ToString();
+            if (OnInput.HasDelegate) await OnInput.InvokeAsync(args);
+            StateHasChanged();
+        }
+
+        public async Task InputKeyDown(KeyboardEventArgs args)
+        {
+            var key = args.Key;
+
+            if (this.ShowPanel)
+            {
+                if (key == "Escape" || key == "Tab")
+                {
+                    this.ClosePanel();
+                }
+                else if (key == "Enter" && this.ActiveValue != null)
+                {
+                    await SetSelectedItem(GetActiveItem());
+                }
+            }
+            else if (!_isOptionsZero)
+            {
+                this.OpenPanel();
+            }
+
+            if (key == "ArrowUp")
+            {
+                this.SetPreviousItemActive();
+            }
+            else if (key == "ArrowDown")
+            {
+                this.SetNextItemActive();
+            }
+        }
+
+        #endregion
+
+        protected override void OnParametersSet()
+        {
+            base.OnParametersSet();
+            ResetActiveItem();
+        }
+
+        protected override async Task OnFirstAfterRenderAsync()
+        {
+            await SetOverlayWidth();
+            await base.OnFirstAfterRenderAsync();
         }
     }
 

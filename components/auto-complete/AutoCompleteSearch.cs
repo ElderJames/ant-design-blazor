@@ -11,7 +11,7 @@ namespace AntDesign
     {
 
         [CascadingParameter]
-        public IAutoCompleteRef AutoComplete { get; set; }
+        public IAutoCompleteInputRef AutoComplete { get; set; }
 
         protected override void OnInitialized()
         {
@@ -22,7 +22,7 @@ namespace AntDesign
 
         internal override async Task OnFocusAsync(FocusEventArgs e)
         {
-            if (AutoComplete != null) await AutoComplete?.InputFocus(e);
+            if (AutoComplete != null) AutoComplete?.InputFocus(e);
 
             await base.OnFocusAsync(e);
 
