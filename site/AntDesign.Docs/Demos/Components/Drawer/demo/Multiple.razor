@@ -1,5 +1,5 @@
 ﻿<div>
-    <Button  Type="primary" OnClick="_=>open()">Open</Button>
+    <Button Type="primary" OnClick="_=>open()">Open</Button>
 
     <Drawer Width="@wdFirstLayer" Closable="true" Visible="visible1" Title='("Multi-level drawer")' OnClose="_=>close()">
         <Button Type="primary" OnClick="_=>ShowDrawer()">Two-level Drawer</Button>
@@ -10,33 +10,34 @@
     </Drawer>
 </div>
 
-   @code{
+@code{
 
-       bool visible1 = false;
-       bool visible2 = false;
-       int wdFirstLayer = 520;
+    bool visible1 = false;
+    bool visible2 = false;
+    string wdFirstLayer = "520";
 
-       void open()
-       {
-           this.visible1 = true;
-       }
+    void open()
+    {
+        this.visible1 = true;
+    }
 
-       void ShowDrawer()
-       {
+    void ShowDrawer()
+    {
+        wdFirstLayer = "780";
 
-           this.visible2 = true;
-           wdFirstLayer += 260;
-       }
+        this.visible2 = true;
+    }
 
-       void close()
-       {
-           this.visible1 = false;
-       }
+    void close()
+    {
+        this.visible1 = false;
+    }
 
-       void CloseDrawer()
-       {
-           wdFirstLayer -= 260;
-           this.visible2 = false;
-       }
+    void CloseDrawer()
+    {
+        wdFirstLayer = "520";
+
+        this.visible2 = false;
+    }
 
 }
