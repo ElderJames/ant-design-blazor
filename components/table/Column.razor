@@ -222,12 +222,13 @@ readonly RenderFragment<Column<TData>> FilterToolTipSorter = col =>
                                     <div>
                                         <Space Style="margin-bottom:10px">
                                             <SpaceItem>
-                                                <Select Value="filter.FilterCondition" TItemValue="TableFilterCondition" TItem="TableFilterCondition" @attributes="@(new Dictionary<string, object>() { ["ValueChanged"] = _callbackFactory.Create<TableFilterCondition>(col, value => col.SetFilterCondition(filter,value)) })">
+                                                <Select Value="filter.FilterCondition" TItemValue="TableFilterCondition" TItem="TableFilterCondition" @attributes="@(new Dictionary<string, object>() { ["ValueChanged"]=_callbackFactory.Create<TableFilterCondition>(col, value => col.SetFilterCondition(filter,value)) })" PopupContainerSelector="@("#popupSelForCondition" + col.Id)">
                                                     <SelectOptions>
                                                         <SelectOption TItem="TableFilterCondition" TItemValue="TableFilterCondition" Value="@TableFilterCondition.And" Label="@col.Table?.Locale.FilterOptions.And"></SelectOption>
                                                         <SelectOption TItem="TableFilterCondition" TItemValue="TableFilterCondition" Value="@TableFilterCondition.Or" Label="@col.Table?.Locale.FilterOptions.Or"></SelectOption>
                                                     </SelectOptions>
                                                 </Select>
+                                                <div id="@("popupSelForCondition" + col.Id)" style="position:relative!important"></div>
                                             </SpaceItem>
                                         </Space>
                                     </div>
