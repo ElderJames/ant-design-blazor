@@ -39,9 +39,8 @@ else if (IsHeader && HeaderColSpan != 0)
     {
         <th class="ant-table-cell ant-table-row-expand-icon-cell"></th>
     }
-
-    var headerCellAttributes = OnHeaderCell?.Invoke();
-
+<CascadingValue Name="IsHeader" Value="false" IsFixed>
+    @{ var headerCellAttributes = OnHeaderCell?.Invoke(); }
     <th class="@ClassMapper.Class" style="@FixedStyle @HeaderStyle" colspan="@HeaderColSpan" title="@(Ellipsis?HeaderTitle:"")" @attributes="headerCellAttributes">
         @if (Sortable || (_filterable && _filters?.Any() == true))
         {
@@ -56,6 +55,7 @@ else if (IsHeader && HeaderColSpan != 0)
             @HeaderTitle
         }
     </th>
+</CascadingValue>    
 }
 else if (IsBody && RowSpan != 0 && ColSpan != 0)
 {
@@ -73,9 +73,8 @@ else if (IsBody && RowSpan != 0 && ColSpan != 0)
             }
         </td>
     }
-
-    var cellAttributes = OnCell?.Invoke(RowData);
-
+<CascadingValue Name="IsBody" Value="false" IsFixed>
+    @{ var cellAttributes = OnCell?.Invoke(RowData); }
     <td class="@ClassMapper.Class" style="@FixedStyle @Style" rowspan="@RowSpan" colspan="@ColSpan" title="@(Ellipsis? fieldText:"")" @attributes="cellAttributes">
         @if (ColIndex == Table.TreeExpandIconColumnIndex && Table.TreeMode)
         {
@@ -110,6 +109,7 @@ else if (IsBody && RowSpan != 0 && ColSpan != 0)
             }
         }
     </td>
+</CascadingValue>
 }
 
 @code
